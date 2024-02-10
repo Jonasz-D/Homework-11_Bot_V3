@@ -9,20 +9,33 @@ def input_error(func):
         except KeyError:
             return 'The command is not exist'
             
-        except ValueError:
+        except PhoneValueError:
             return 'Phone number must consist of numbers'
         
         except IndexError:
             return 'Not given name or phone number'
+        
+        except NameError:
+            return ' Not given name'
 
+        except BirthdayDateError:
+            return "Birthday date is incorrect or contact's birthday date already exists"
     return inner
+
+class PhoneValueError(Exception):
+    pass 
+
+class BirthdayDateError(Exception):
+    pass
+
+class NameError(Exception):
+    pass
 
 
 class Field:
     def __init__(self, value):
         self.value = value
     
-
 class Name(Field):
     def __init__(self, value):
         super().__init__(value)
@@ -32,19 +45,38 @@ class Phone(Field):
     def __init__(self, value):
         super().__init__(value)
 
-        if not self.value.isdigit():
-            raise ValueError
+    @property
+    def value(self):
+        return self.phone
+    
+    @value.setter
+    def value(self, value):
+        if not value.isdigit():
+            raise PhoneValueError
         else:
-            self.value = value
+            self.phone = value
 
 class Birthday(Field):
     def __init__(self, value):
         super().__init__(value)
-        birthday = re.split(r'[\D]+', value)
 
-        if len(birthday[0]) <= 2:
-            birthday.reverse()
-        self.birthday = datetime(year= int(birthday[0]), month= int(birthday[1]), day=int(birthday[2])).date()
+    @property
+    def value(self):
+        return self.__birthday
+    
+    @value.setter
+    def value(self, value):
+        birthday = re.split(r'[\D]+', value)
+        if len(birthday) < 3:
+            raise BirthdayDateError
+        else:
+            if len(birthday[0]) <= 2:
+                birthday.reverse()
+            try:
+                self.__birthday = datetime(year= int(birthday[0]), month= int(birthday[1]), day=int(birthday[2])).date()
+            except:
+                raise BirthdayDateError
+
 
 class Record:
     def __init__(self, contact_name):
@@ -64,9 +96,9 @@ class Record:
 
     def set_birthday(self, birthday):
         if self.birthday == None:
-            self.birthday = Birthday(birthday).birthday
+            self.birthday = Birthday(birthday).value
         else:
-            return f'You have already entered contact\'s birthday date'
+            raise BirthdayDateError
         
     def days_to_birthday(self):
         if self.birthday != None:
@@ -82,9 +114,6 @@ class Record:
             return f'Unknown contact\'s birthday date'
             
 
-
-        
-
 class AdressBook(UserDict):
     def add_record(self, name):
         self.data[Record(name).name] = Record(name)
@@ -92,15 +121,28 @@ class AdressBook(UserDict):
     def show_all(self):
         all_contacts = ''
         for contact, phones in self.data.items():
-            all_contacts += f'Name: {str(contact):<10} Phone number: {phones.phone_num}\n'
-
+            all_contacts += f'Name: {str(contact):<10} Phone number: {phones.phone_num} Birthday: {phones.birthday}\n'
         return all_contacts
     
+    def iterator(self):
+        N = 2
+        for contact, phones in self.data.items():
+            i = 0
+            while i < N:
+                cont = f'Name: {str(contact):<10} Phone number: {phones.phone_num} Birthday: {phones.birthday}'
+                i += 1
+            yield cont
+        
+
 def hello(command, contacts):
     return 'How can I help you?'
 
 def create_contact(command, contacts):
-    name = command[1]
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    
     if list(contacts.keys()) == []:
         return contacts.add_record(name)
 
@@ -111,16 +153,30 @@ def create_contact(command, contacts):
     return contacts.add_record(name)
 
 def add_phone(command, contacts):
-    name, phone = command[1], command[2]
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    
+    try:
+        phone =command[2]
+    except:
+        raise PhoneValueError
     for contact, phones in contacts.items():
         if name == str(contact) and phone not in phones.phone_num:
             phones.add_phone(phone)
             return
-      
     return "The contact doesn't exists or phone number was already added"
 
 def change_phone_num(command, contacts):
-    name, phone_num, new_phone = command[1], command[2], command[3]
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    try:
+        phone_num, new_phone = command[2], command[3]
+    except:
+        raise PhoneValueError
     
     for contact, phones in contacts.items():
         if name == str(contact) and phone_num in phones.phone_num:
@@ -129,7 +185,10 @@ def change_phone_num(command, contacts):
     return "The contact or phone number doesn't exists"
 
 def show_contact(command, contacts):
-    name = command[1]
+    try:
+        name = command[1]
+    except:
+        raise NameError
     for contact, phones in contacts.items():
         if name == str(contact):
             return f'contact name: {str(contact)}; phones: {phones.phone_num}'
@@ -137,7 +196,14 @@ def show_contact(command, contacts):
     return f"contact name: {name} doesn't exists"
 
 def delete_phone(command, contacts):
-    name, phone = command[1], command[2]
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    try:
+        phone =command[2]
+    except:
+        raise PhoneValueError
     for contact, phones in contacts.items():
         if name == str(contact) and phone in (phones.phone_num):
             phones.remove_phone(phone)
@@ -159,6 +225,35 @@ def accepted_commands(command, contacts):
         
     return f"Accepted commands: {message}"
 
+def set_birthday(command, contacts):
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    try:
+        birthday =  command[2]
+    except:
+        raise BirthdayDateError
+    for contact, contact_data in contacts.items():
+        if name == str(contact):
+            contact_data.set_birthday(birthday)
+            return
+    return "The contact doesn't exists"
+    
+def days_to_birthday(command, contacts):
+    try:
+        name = command[1]
+    except:
+        raise NameError
+    for contact, birthday in contacts.items():
+        if name == str(contact):
+            return f'contact name: {str(contact)}; days to birthday: {birthday.days_to_birthday()}'
+    
+    return f"contact name: {name} doesn't exists"
+
+def iterator(command, contacts):
+    '''Blank function. Real Iterator is localized in "main" function'''
+    pass
 
 OPERATIONS = {
     'accepted_commands':accepted_commands,
@@ -168,6 +263,9 @@ OPERATIONS = {
     'change_phone_num': change_phone_num,
     'show_contact': show_contact,
     'delete_phone': delete_phone,
+    'set_birthday' : set_birthday,
+    'days_to_birthday': days_to_birthday,
+    'iterator': iterator,
     'show_all': show_all,
     'good_bye': end_program, 
     'close': end_program, 
@@ -190,11 +288,15 @@ def main():
             base_command = command[0]
         except IndexError:
             continue
-
+        
         handler = handler_command(base_command, command, contacts)
 
-        if isinstance(handler, str):
-            print(handler)
+        if isinstance(handler, str) or base_command == 'iterator':
+            if base_command == 'iterator':
+                for c in contacts.iterator():
+                    print(c)
+            else:
+                print(handler)
         
         elif isinstance(handler, bool):
             flag = handler
@@ -203,10 +305,5 @@ def main():
             handler
 
 
-# if __name__ == '__main__':
-#     main()
-
-adres = AdressBook()
-record = Record('Adam')
-record.set_birthday('20/5.1990')
-print(record.days_to_birthday())
+if __name__ == '__main__':
+    main()
